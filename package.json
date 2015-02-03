@@ -1,0 +1,19 @@
+{
+  "name": "s3-video-tools",
+  "version": "0.0.0",
+  "description": "common S3 and ffmpeg operations",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bridge-athletic/s3-video-tools.git"
+  },
+  "author": "BridgeAthletic",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/bridge-athletic/s3-video-tools/issues"
+  },
+  "homepage": "https://github.com/bridge-athletic/s3-video-tools"
+}
