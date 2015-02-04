@@ -109,12 +109,10 @@ var q = async.queue(function(videoOperation, callback) {
    *    - result
    */
 function performTranscodeVideoOperation(videoOperation, queueCallback) {
-
+  console.log('processing: ' + videoOperation.sourcePath);
   async.auto({
 
     transcodeVideo : function(cb) {
-      console.log('tmpFileName: ' + tmpFileName);
-      //return cb(null);
 
       var tmpFileName = generateUUID();
       var tmpFilePath = tmpDirectory + '/' + tmpFileName + '.mp4';
@@ -171,13 +169,20 @@ function performTranscodeVideoOperation(videoOperation, queueCallback) {
       });
     }],
 
-    cleanUpFiles : ['transcodeVideo', 'uploadVideo', function(cb, results) {
-      console.log('cleanUpFiles');
-      cb(null);
-    }]
   }, function(err, results) {
-    console.log('err = ', err);
-    console.log('results = ', results);
+
+    // make sure we clean up files we created (even if S3 upload failed)
+    if (results && results.transcodeVideo && results.transcodeVideo.transcodedFilePath) {
+      console.log('cleanUpFiles');
+      fs.unlink(results.transcodeVideo.transcodedFilePath, function (fileError) {
+        if (fileError) {
+          console.log(fileError);
+        } else {
+          console.log('successfully deleted file');
+        }
+      });      
+    } 
+
     queueCallback(err, results);
   });
 }
