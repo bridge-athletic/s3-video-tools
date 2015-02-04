@@ -4,28 +4,7 @@ var fs = require('fs');
 var async = require('async');
 var ffmpeg = require('fluent-ffmpeg');
 var s3;
-
-// create queue to be managed by this module 'performVideoOperation' function defined below
-var q = async.queue(function(videoOperation, callback) {
-  if (!videoOperation) {
-    return callback('no operation obj provided');
-  }
-  if (!videoOperation.ffmpegOperation || !videoOperation.ffmpegOperation.type) {
-    return callback('ffmpegOperation and ffmpegOperation.type must be set on videoOperation');
-  }
-
-  // choose operation task based on ffmpegOperation type
-  if (videoOperation.ffmpegOperation.type === 'transcodeMP4') {  // trancodeMP4
-    performTranscodeVideoOperation(videoOperation, callback);
-  } else {
-    return callback(videoOperation.ffmpegOperation.type + ' type not yet supported');
-  }
-}, 1);
-
-// q.drain = function() {
-//   console.log('all items have been processed from the queue');
-// };
-
+var tmpDirectory = null;
 
 module.exports = {
 
@@ -41,9 +20,17 @@ module.exports = {
    */
   initialize : function(options) {
 
-    // initialize S3 with awsCredentials passed in
-    AWS.config.update(options.awsCredentials);
-    s3 = new AWS.S3();
+    if (!options.tmpDirectory) {
+      console.log('tmpDirectory is a required option. YMMV from this point...');
+    }
+    tmpDirectory = options.tmpDirectory;
+    if (options.awsCredentials) {
+      // initialize S3 with awsCredentials passed in
+      AWS.config.update(options.awsCredentials);
+      s3 = new AWS.S3();      
+    } else {
+      console.log('you have not specified AWS awsCredentials. YMMV from this point...');
+    }
 
   },
 
@@ -81,6 +68,28 @@ module.exports = {
 };
 
 
+// create queue to be managed by this module 'performVideoOperation' function defined below
+var q = async.queue(function(videoOperation, callback) {
+  if (!videoOperation) {
+    return callback('no operation obj provided');
+  }
+  if (!videoOperation.ffmpegOperation || !videoOperation.ffmpegOperation.type) {
+    return callback('ffmpegOperation and ffmpegOperation.type must be set on videoOperation');
+  }
+
+  // choose operation task based on ffmpegOperation type
+  if (videoOperation.ffmpegOperation.type === 'transcodeMP4') {  // trancodeMP4
+    performTranscodeVideoOperation(videoOperation, callback);
+  } else {
+    return callback(videoOperation.ffmpegOperation.type + ' type not yet supported');
+  }
+}, 1);
+
+// q.drain = function() {
+//   console.log('all items have been processed from the queue');
+// };
+
+
 
 /**
    * performVideoOperation
@@ -101,38 +110,65 @@ module.exports = {
    */
 function performTranscodeVideoOperation(videoOperation, queueCallback) {
 
-  var tmpFileName = generateUUID();
-
   async.auto({
 
     transcodeVideo : function(cb) {
       console.log('tmpFileName: ' + tmpFileName);
-      return cb(null);
+      //return cb(null);
 
-      var options = {};
+      var tmpFileName = generateUUID();
+      var tmpFilePath = tmpDirectory + '/' + tmpFileName + '.mp4';
 
-      options.outputPath = '/Users/rockfakie/Downloads/00002SprintCrossNodeFluent.mp4';
+      var transcodeResult = {
+        transcodedFilePath : tmpFilePath
+      };
 
       // make sure you set the correct path to your video file
-      var proc = ffmpeg('/Users/rockfakie/Downloads/00000SprintCross.wmv')
+      var proc = ffmpeg(videoOperation.sourcePath)
         .withVideoCodec('libx264')
         .withAudioCodec('libfaac')
         
         // callback when ffmpeg job finished successfully
         .on('end', function() {
           console.log('file has been converted successfully');
-          cb(null);
+          cb(null, transcodeResult);
         })
         .on('error', function(err) {
           console.log(err);
           cb(err);
         })
-        .save(options.outputPath);
+        .save(transcodeResult.transcodedFilePath);
     },
 
     uploadVideo : ['transcodeVideo', function(cb, results) {
-      console.log('uploadVideo');
-      cb(null);
+      //console.log(results);
+
+      fs.readFile(results.transcodeVideo.transcodedFilePath, function(err, data) {
+        if (err) {
+          console.log(err);
+          cb(err);
+        } else {          
+
+          console.log('about to try s3 request');
+
+          var req = s3.putObject({
+            Bucket : videoOperation.s3Options.Bucket,
+            Key : videoOperation.s3Options.Key,
+            ACL : videoOperation.s3Options.ACL,
+            ContentType: videoOperation.s3Options.ContentType,
+            Body : data
+          }).on('success', function(response) {
+            cb(null, response);
+          }).on('error', function(err) {
+            console.log(err);
+            cb(err);
+          }).on('httpUploadProgress', function(progress) {
+
+          });
+
+          req.send();
+        }
+      });
     }],
 
     cleanUpFiles : ['transcodeVideo', 'uploadVideo', function(cb, results) {
