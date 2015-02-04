@@ -15,5 +15,9 @@
   "bugs": {
     "url": "https://github.com/bridge-athletic/s3-video-tools/issues"
   },
-  "homepage": "https://github.com/bridge-athletic/s3-video-tools"
+  "homepage": "https://github.com/bridge-athletic/s3-video-tools",
+  "dependencies": {
+    "fluent-ffmpeg": "~2.0.0-rc3",
+    "aws-sdk": "~2.1.8"
+  }
 }

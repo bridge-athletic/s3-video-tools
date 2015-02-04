@@ -41,6 +41,6 @@ module.exports = {
    *      > ContentType (e.g. 'video/mp4')
    */
   addVideoOperation : function(videoOperation) {
-    console.log('videoOperation: ' + ffmpegOperation.type);
+    console.log('videoOperation: ' + videoOperation.ffmpegOperation.type);
   },
 };
