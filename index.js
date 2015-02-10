@@ -4,6 +4,7 @@ var fs = require('fs');
 var async = require('async');
 var ffmpeg = require('fluent-ffmpeg');
 var s3;
+var os = require('os');
 var tmpDirectory = null;
 
 module.exports = {
@@ -21,9 +22,14 @@ module.exports = {
   initialize : function(options) {
 
     if (!options.tmpDirectory) {
+      // use system tmp directory
+      tmpDirectory = os.tmpDir();
       console.log('tmpDirectory is a required option. YMMV from this point...');
+    } else {
+      tmpDirectory = options.tmpDirectory;  
+      console.log('using tmp dir: ' + tmpDirectory);
     }
-    tmpDirectory = options.tmpDirectory;
+
     if (options.awsCredentials) {
       // initialize S3 with awsCredentials passed in
       AWS.config.update(options.awsCredentials);
@@ -53,7 +59,7 @@ module.exports = {
    */
   addVideoOperation : function(videoOperation, cb) {
     console.log('videoOperation: ' + videoOperation.ffmpegOperation.type);
-    q.push(videoOperation, function(err) {
+    q.push(videoOperation, function(err, results) {
       // return immediately if there is no cb function
       if (!cb) {
         return;
@@ -62,7 +68,7 @@ module.exports = {
         console.log(err);
         return cb(err);
       }
-      cb(null);
+      cb(null, results);
     });
   },
 };
@@ -80,6 +86,8 @@ var q = async.queue(function(videoOperation, callback) {
   // choose operation task based on ffmpegOperation type
   if (videoOperation.ffmpegOperation.type === 'transcodeMP4') {  // trancodeMP4
     performTranscodeVideoOperation(videoOperation, callback);
+  } else if (videoOperation.ffmpegOperation.type === 'stillShot') { //stillShot
+    performStillshotVideoOperation(videoOperation, callback);
   } else {
     return callback(videoOperation.ffmpegOperation.type + ' type not yet supported');
   }
@@ -92,7 +100,7 @@ var q = async.queue(function(videoOperation, callback) {
 
 
 /**
-   * performVideoOperation
+   * performTranscodeVideoOperation
    *
    * params:
    *  @videoOperation
@@ -187,6 +195,63 @@ function performTranscodeVideoOperation(videoOperation, queueCallback) {
   });
 }
 
+
+/**
+   * performStillshotVideoOperation
+   *
+   * params:
+   *  @videoOperation
+   *    - sourcePath
+   *    - time
+   *    - ffmpegOperation
+   *      > type ['transcodeMP4', 'stillShot']
+   *    - s3Options
+   *      > Bucket (e.g. 'bridge-video-staging')
+   *      > Key (filename. e.g. '00003SprintCrossNodeFluent.mp4')
+   *      > ACL (e.g. 'public-read')
+   *      > ContentType (e.g. 'video/mp4')
+   *  @cb
+   *    - error
+   *    - result
+   */
+function performStillshotVideoOperation(videoOperation, queueCallback) {
+
+  if (!videoOperation.sourcePath || !videoOperation.time) {
+    return queueCallback('sourcePath and time are required arguments on videoOperation');
+  }
+
+  async.auto({
+
+    stillShot : function(cb) {
+
+      var tmpFileName = generateUUID() + '.jpg';
+      var tmpFilePath = tmpDirectory + tmpFileName;
+
+      var stillShotResult = {
+        stillShotFilePath : tmpFilePath
+      };
+
+      var proc = ffmpeg(videoOperation.sourcePath)
+        // setup event handlers
+        .on('end', function(files) {
+          //console.log('screenshots were saved');
+          console.log('file created at: ' + tmpFilePath);
+          cb(null, {
+            imageFileName : tmpFileName,
+            imageFilePath : tmpFilePath
+          });
+        })
+        .on('error', function(err) {          
+          cb(err);
+        })
+        // take 1 screenshots at predefined timemarks
+        .takeScreenshots({ count: 1, timemarks: [ String(videoOperation.time) ], filename : tmpFileName}, tmpDirectory);
+    },
+
+  }, function(err, results) {
+    queueCallback(err, results.stillShot);
+  });
+}
 
 /**
  * generateUUID util
