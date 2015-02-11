@@ -241,7 +241,11 @@ function performStillshotVideoOperation(videoOperation, queueCallback) {
             imageFilePath : tmpFilePath
           });
         })
-        .on('error', function(err) {          
+        .on('error', function(err, stdout, stderr) {
+          console.log(" =====Stillshot op Failed======");
+          console.log(err);
+          console.log("stdout: " + stdout);
+          console.log("stderr: " + stderr);
           cb(err);
         })
         // take 1 screenshots at predefined timemarks
