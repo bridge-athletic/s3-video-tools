@@ -17,7 +17,7 @@
   },
   "homepage": "https://github.com/bridge-athletic/s3-video-tools",
   "dependencies": {
-    "fluent-ffmpeg": "~2.0.0-rc3",
+    "fluent-ffmpeg": "git://github.com/schaermu/node-fluent-ffmpeg.git#master",
     "aws-sdk": "~2.1.8",
     "async": "~0.9.0"
   }
