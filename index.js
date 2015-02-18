@@ -129,10 +129,37 @@ function performTranscodeVideoOperation(videoOperation, queueCallback) {
         transcodedFilePath : tmpFilePath
       };
 
+
+      console.log('about to transcode video');
+
       // make sure you set the correct path to your video file
       var proc = ffmpeg(videoOperation.sourcePath)
-        .withVideoCodec('libx264')
-        .withAudioCodec('libfaac')
+        // .withVideoCodec('libx264')
+        // .withAudioCodec('libfaac')
+
+        // ffmpeg -vcodec libx264 -profile:v main -b:v 512k -s 1280x720 -r:v 30 -acodec libfdk_aac -b:a 128k -movflags faststart -y movie1.mp4
+
+        // set video bitrate
+        .videoBitrate(512)
+        // set h264 preset
+        //.addOption('preset','superfast')
+        // set target codec
+        .videoCodec('libx264')
+        // set audio bitrate
+        .audioBitrate('128k')
+        // set audio codec
+        .audioCodec('libfaac')
+        // set number of audio channels
+        .audioChannels(2)
+        .addOption('-profile:v', 'main')
+        .addOption('-movflags', 'faststart')
+        .addOption('-r:v', 30)
+        .addOption('-r:a', 48000)
+        // .withSize('1280x720')
+        // // set hls segments time
+        // .addOption('-hls_time', 10)
+        // // include all the segments in the list
+        // .addOption('-hls_list_size',0)
         
         // callback when ffmpeg job finished successfully
         .on('end', function() {
@@ -155,7 +182,7 @@ function performTranscodeVideoOperation(videoOperation, queueCallback) {
           cb(err);
         } else {          
 
-          console.log('about to try s3 request');
+          console.log('uploading to s3 bucket: ' + videoOperation.s3Options.Bucket + ' Key: ' + videoOperation.s3Options.Key);
 
           var req = s3.putObject({
             Bucket : videoOperation.s3Options.Bucket,
